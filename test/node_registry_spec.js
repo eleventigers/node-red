@@ -1,7 +1,6 @@
-var should = require("should");
-var RedNodes = require("../red/nodes.js");
-
-var RedNode = RedNodes.Node;
+var should = require("should"),
+	RedNodes = require("../red/nodes.js"),
+	RedNode = require("../red/node.js");
 
 describe('NodeRegistry', function() {
     it('automatically registers new nodes',function() {
@@ -10,5 +9,5 @@ describe('NodeRegistry', function() {
         should.strictEqual(n,RedNodes.getNode('123'));
     });
 })
-        
+
 

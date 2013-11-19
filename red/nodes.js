@@ -13,12 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  **/
-var util = require("util");
-var EventEmitter = require("events").EventEmitter;
-var fs = require("fs");
-var path = require("path");
-var events = require("./events");
-var storage = null;
+var util = require("util"),
+    EventEmitter = require("events").EventEmitter,
+    fs = require("fs"),
+    path = require("path"),
+    events = require("./events"),
+    Node = require('./node'),
+    storage = null;
 
 function getCallerFilename(type) {
     //if (type == "summary") {
@@ -81,7 +82,7 @@ var registry = (function() {
 
 var ConsoleLogHandler = new EventEmitter();
 ConsoleLogHandler.on("log",function(msg) {
-        util.log("["+msg.level+"] ["+msg.type+":"+(msg.name||msg.id)+"] "+msg.msg);
+    util.log("["+msg.level+"] ["+msg.type+":"+(msg.name||msg.id)+"] "+msg.msg);
 });
 
 registry.addLogHandler(ConsoleLogHandler);
@@ -122,95 +123,25 @@ var node_type_registry = (function() {
         return obj;
 })();
 
-function Node(n) {
-    this.id = n.id;
-    registry.add(this);
-    this.type = n.type;
-    if (n.name) {
-        this.name = n.name;
-    }
-    this.wires = n.wires||[];
-}
-util.inherits(Node,EventEmitter);
-
-Node.prototype.close = function() {
-    // called when a node is removed
-    this.emit("close");
-}
-
-
-Node.prototype.send = function(msg) {
-    // instanceof doesn't work for some reason here
-    if (msg == null) {
-        msg = [];
-    } else if (!util.isArray(msg)) {
-        msg = [msg];
-    }
-    for (var i in this.wires) {
-        var wires = this.wires[i];
-        if (i < msg.length) {
-            for (var j in wires) {
-                if (msg[i] != null) {
-                    var msgs = msg[i];
-                    if (!util.isArray(msg[i])) {
-                        msgs = [msg[i]];
-                    }
-                    for (var k in msgs) {
-                        var mm = msgs[k];
-                        var m = {};
-                        for (var p in mm) {
-                            if (mm.hasOwnProperty(p)) {
-                                m[p] = mm[p];
-                            }
-                        }
-                        var node = registry.get(wires[j]);
-                        if (node) {
-                            node.receive(m);
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-module.exports.Node = Node;
-
-Node.prototype.receive = function(msg) {
-    this.emit("input",msg);
-}
-
-Node.prototype.log = function(msg) {
-    var o = {level:'log',id:this.id, type:this.type, msg:msg};
-    if (this.name) o.name = this.name;
-    this.emit("log",o);
-}
-Node.prototype.warn = function(msg) {
-    var o = {level:'warn',id:this.id, type:this.type, msg:msg};
-    if (this.name) o.name = this.name;
-    this.emit("log",o);
-}
-Node.prototype.error = function(msg) {
-    var o = {level:'error',id:this.id, type:this.type, msg:msg};
-    if (this.name) o.name = this.name;
-    this.emit("log",o);
-}
-
 var credentials = {};
 
 module.exports.addCredentials = function(id,creds) {
     credentials[id] = creds;
     storage.saveCredentials(credentials);
-}
+};
+
 module.exports.getCredentials = function(id) {
     return credentials[id];
-}
+};
+
 module.exports.deleteCredentials = function(id) {
     delete credentials[id];
     storage.saveCredentials(credentials);
-}
-module.exports.createNode = function(node,def) {
-    Node.call(node,def);
-}
+};
+
+module.exports.createNode = function(node, options) {
+    Node.call(node, options);
+};
 
 module.exports.registerType = node_type_registry.register;
 module.exports.getNodeConfigs = node_type_registry.getNodeConfigs;
@@ -264,7 +195,11 @@ events.on('type-registered',function(type) {
 
 module.exports.getNode = function(nid) {
     return registry.get(nid);
-}
+};
+
+module.exports.addNode = function (node) {
+    return registry.add(node);
+};
 
 function stopFlows() {
     if (activeConfig&&activeConfig.length > 0) {
@@ -278,7 +213,7 @@ module.exports.stopFlows = stopFlows;
 module.exports.setConfig = function(conf) {
     stopFlows();
     activeConfig = conf;
-    
+
     if (!storage) {
         // Do this lazily to ensure the storage provider as been initialised
         storage = require("./storage");
